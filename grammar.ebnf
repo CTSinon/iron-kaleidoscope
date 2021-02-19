@@ -1,55 +1,13 @@
-//< parser-grammar parser-grammar-program parser-grammar-top
 program          : [[statement | expression] Delimiter ? ]*;
-//> parser-grammar-program
-//< parser-grammar-statements
 statement        : [declaration | definition];
 declaration      : Extern prototype;
-//< parser-grammar-defproto
 definition       : Def prototype expression;
-//> parser-grammar-top parser-grammar-statements
-//< parser-grammar-proto binary-grammar unary-grammar
-prototype        : 
-//> parser-grammar parser-grammar-defproto parser-grammar-proto
-/*j*/[
-//< parser-grammar parser-grammar-defproto parser-grammar-proto
-/*j*/Ident
-//> parser-grammar parser-grammar-defproto parser-grammar-proto
-/*jw*/ | Binary Op Number ?
-//> binary-grammar
-/*jw*/ | Unary Op
-//< binary-grammar
-/*j*/]
-//< parser-grammar parser-grammar-defproto parser-grammar-proto
-/*jw*/ OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
-//> parser-grammar-defproto parser-grammar-proto binary-grammar unary-grammar
-//< parser-grammar-expr parser-grammar-binary
+prototype        : [Ident | Binary Op Number ? | Unary Op] OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;
 expression       : [primary_expr (Op primary_expr)*];
-//> parser-grammar-binary
-//< parser-grammar-primary if-grammar for-grammar unary-grammar mutable-grammar-var
-primary_expr     : [Ident | Number | call_expr | parenthesis_expr
-//> parser-grammar parser-grammar-expr parser-grammar-primary
-/*jw*/ | conditional_expr
-//> if-grammar
-/*jw*/ | loop_expr
-//> for-grammar
-/*jw*/ | unary_expr
-//> unary-grammar
-/*jw*/ | var_expr
-//< parser-grammar parser-grammar-expr parser-grammar-primary if-grammar for-grammar unary-grammar
-/*j*/ ];
-//> if-grammar for-grammar unary-grammar mutable-grammar-var
+primary_expr     : [Ident | Number | call_expr | parenthesis_expr | conditional_expr | loop_expr | unary_expr | var_expr ];
 call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
 parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
-//> parser-grammar parser-grammar-expr parser-grammar-primary
-//< if-grammar
 conditional_expr : If expression Then expression Else expression;
-//> if-grammar
-//< for-grammar
 loop_expr        : For Ident Op= expression Comma expression [Comma expression]? In expression;
-//> for-grammar
-//< unary-grammar
 unary_expr:      : Op primary_expr;
-//> unary-grammar
-//< mutable-grammar-var
 var_expr         : Var Ident [Op= expression]? [Comma Ident [Op= expression]?]* In expression;
-//> mutable-grammar-var

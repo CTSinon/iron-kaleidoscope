@@ -38,52 +38,60 @@ use self::PartParsingResult::{
     Bad
 };
 
+/// representing a statment</br>
+/// EBNF of a statment is `statement: [declaration | definition];`
 #[derive(PartialEq, Clone, Debug)]
 pub enum ASTNode {
+    /// declaration
     ExternNode(Prototype),
+    /// definition
     FunctionNode(Function)
 }
 
-//< parser-defproto
+/// representing a FunctionNode(definition)</br>
+/// EBNF is `definition: Def prototype expression;`
 #[derive(PartialEq, Clone, Debug)]
 pub struct Function {
+    /// prototype
     pub prototype: Prototype,
+    /// expression
     pub body: Expression
 }
 
-//< binary-proto
+/// representing a ExternNode(prototype)</br>
+/// EBNF is `prototype : Ident OpeningParenthesis [Ident Comma ?]* ClosingParenthesis;`
 #[derive(PartialEq, Clone, Debug)]
 pub struct Prototype {
+    /// the first Ident token
     pub name: String,
-//> ch-1 ch-4 parser-defproto
     pub ftype: FunctionType,
-//< ch-1 ch-4 parser-defproto
+    /// the Ident token list in parenthesis
     pub args: Vec<String>
 }
-//> parser-defproto  binary-proto
 
-//< parser-expr if-parser for-parser mutable-var-parser
+/// representing an expression</br>
+/// EBNF is </br>
+/// ```ebnf
+/// expression       : [primary_expr (Op primary_expr)*];
+/// primary_expr     : [Ident | Number | call_expr | parenthesis_expr];
+/// call_expr        : Ident OpeningParenthesis [expression Comma ?]* ClosingParenthesis;
+/// parenthesis_expr : OpeningParenthesis expression ClosingParenthesis;
+/// ```
 #[derive(PartialEq, Clone, Debug)]
 pub enum Expression {
+    /// a 64-bit float number
     LiteralExpr(f64),
+    /// an Ident token name
     VariableExpr(String),
-//> ch-1  ch-4 parser-expr if-parser for-parser
-//< unary-ast
     UnaryExpr(String, Box<Expression>),
-//> unary-ast
-//< ch-1  ch-4 parser-expr if-parser for-parser
+    /// a binary expression with the from `Ident Op Ident`
     BinaryExpr(String, Box<Expression>, Box<Expression>),
-//> ch-1 parser-expr
     ConditionalExpr{cond_expr: Box<Expression>, then_expr: Box<Expression>, else_expr: Box<Expression>},
-//> if-parser
     LoopExpr{var_name: String, start_expr: Box<Expression>, end_expr: Box<Expression>, step_expr: Box<Expression>, body_expr: Box<Expression>},
-//> ch-4 ch-5 for-parser
     VarExpr{vars: Vec<(String, Expression)>, body_expr: Box<Expression>},
-//< ch-1 ch-4 ch-5 parser-expr if-parser for-parser
     CallExpr(String, Vec<Expression>)
+    // note that we do not have a representation of `parenthesis_expr` because this is a tree
 }
-//> ch-1 ch-4 parser-expr if-parser for-parser mutable-var-parser
-//<  binary-proto
 
 //< unary-ftype
 #[derive(PartialEq, Clone, Debug)]
@@ -135,13 +143,14 @@ pub fn default_parser_settings() -> ParserSettings {
 }
 //> parser-default-settings mutable-parser-default-settings
 
-//< parser-parse parser-parse-sign
+/// generate an AST tree from the tokens
+/// * `tokens` - the token list
+/// * `parsed_tree` - the already parsed tree
+/// * `settings` - some settings about parsing
 pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut ParserSettings) -> ParsingResult
-//> parser-parse-sign
 {
     let mut rest = tokens.to_vec();
-    // we read tokens from the end of the vector
-    // using it as a stack
+    // emulate a token stack
     rest.reverse();
 
     // we will add new AST nodes to already parsed ones
@@ -155,6 +164,10 @@ pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut Parser
                 Some(token) => token.clone(),
                 None => break
             };
+        
+        // from the EBNF we can know program can only begin with statement, expression or Delimiter token 
+        // a statement can be declaration or definition
+        // so a statement can only begin with Extern or Def token
         let result = match cur_token {
             Token::Def => parse_function(&mut rest, settings),
             Token::Extern => parse_extern(&mut rest, settings),
@@ -313,7 +326,8 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
 
     expect_token!(
         [Token::OpeningParenthesis, Token::OpeningParenthesis, ()] <= tokens,
-        parsed_tokens, "expected '(' in prototype");
+        parsed_tokens, 
+        "expected '(' in prototype");
 
     let mut args = Vec::new();
     loop {
@@ -339,28 +353,31 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
 
 //< ch-1 ch-4 parser-parse-prototype
 
-    Good(Prototype{name: name, args: args
-//> ch-1 ch-4 parser-parse-prototype
-/*j*/              , ftype: ftype
-//< ch-1 ch-4 parser-parse-prototype
-/*j*/             }, parsed_tokens)
+    Good(
+        Prototype {
+            name: name, 
+            args: args,
+            ftype: ftype
+        }, 
+        parsed_tokens)
 }
 //> parser-parse-prototype binary-parse-proto unary-parse-proto
 
-//< parser-parse-expression
+/// parse an expression with a form of FunctionNode whose prototype is empty
 fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
     let mut parsed_tokens = Vec::new();
     let expression = parse_try!(parse_expr, tokens, settings, parsed_tokens);
-    let prototype = Prototype{name: "".to_string(), args: vec![]
-//> ch-1 ch-4 parser-parse-expression
-                              , ftype: Normal
-//< ch-1 ch-4 parser-parse-expression
-/*j*/                         };
-    let lambda = Function{prototype: prototype, body: expression};
+    let prototype = Prototype {
+        name: "".to_string(),
+        args: vec![],
+        ftype: Normal
+    };
+    let lambda = Function {
+        prototype: prototype, 
+        body: expression
+    };
     Good(FunctionNode(lambda), parsed_tokens)
 }
-//> parser-parse-expression
-//< if-parser for-parser mutable-var-parser
 
 //< parser-parse-primary-expr unary-parse-expr
 fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
@@ -484,7 +501,6 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
                 },
                 _ => break
             };
-
             rhs = binary_rhs;
         }
 
