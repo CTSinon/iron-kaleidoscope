@@ -1,47 +1,18 @@
-//< ch-0 ch-4 ch-5 ch-6 lexer-tokens-use
-pub use self::Token::{
-    Def,
-    Extern,
-//> ch-0 lexer-tokens-use
-    If,
-    Then,
-    Else,
-    For,
-    In,
-//> ch-4
-    Binary,
-    Unary,
-//> ch-5
-    Var,
-//< ch-0 ch-4 ch-5 lexer-tokens-use
-    Delimiter,
-    OpeningParenthesis,
-    ClosingParenthesis,
-    Comma,
-    Ident,
-    Number,
-    Operator
-};
-//> lexer-tokens-use
+use regex_macro::regex;
 
-//< lexer-tokens if-lexer for-lexer mutable-var-lexer
+/// all the tokens used in our language
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
     Def,
     Extern,
-//> ch-0 lexer-tokens
     If,
     Then,
     Else,
-//> if-lexer
     For,
     In,
-//> ch-4 for-lexer
     Binary,
     Unary,
-//> ch-5
     Var,
-//< ch-0 ch-4 ch-5 lexer-tokens if-lexer for-lexer
     Delimiter, //';' character
     OpeningParenthesis,
     ClosingParenthesis,
@@ -50,20 +21,19 @@ pub enum Token {
     Number(f64),
     Operator(String)
 }
-//> lexer-tokens
 
-//< lexer-tokenize
+/// split the source code into vector of token
 pub fn tokenize(input: &str) -> Vec<Token> {
-    // regex for commentaries (start with #, end with the line end)
-    let comment_re = regex!(r"(?m)#.*\n");
-    // remove commentaries from the input stream
+    // comments start with #, end with the line end
+    let comment_re: &regex::Regex = regex!(r"(?m)#.*\n");
+    // remove all comments
     let preprocessed = comment_re.replace_all(input, "\n");
 
     let mut result = Vec::new();
 
     // regex for token, just union of straightforward regexes for different token types
     // operators are parsed the same way as identifier and separated later
-    let token_re = regex!(concat!(
+    let token_re: &regex::Regex = regex!(concat!(
         r"(?P<ident>\p{Alphabetic}\w*)|",
         r"(?P<number>\d+\.?\d*)|",
         r"(?P<delimiter>;)|",
@@ -72,41 +42,36 @@ pub fn tokenize(input: &str) -> Vec<Token> {
         r"(?P<comma>,)|",
         r"(?P<operator>\S)"));
 
-    for cap in token_re.captures_iter(preprocessed.as_str()) {
+    for cap in token_re.captures_iter(preprocessed.as_ref()) {
         let token = if cap.name("ident").is_some() {
-            match cap.name("ident").unwrap() {
-                "def" => Def,
-                "extern" => Extern,
-//> ch-0 lexer-tokenize
-                "if" => If,
-                "then" => Then,
-                "else" => Else,
-//> if-lexer
-                "for" => For,
-                "in" => In,
-//> ch-4 for-lexer
-                "binary" => Binary,
-                "unary" => Unary,
-//> ch-5
-                "var" => Var,
-//< ch-0 ch-4 ch-5 lexer-tokenize if-lexer for-lexer
-                ident => Ident(ident.to_string())
+            match cap.name("ident").unwrap().as_str() {
+                "def" => Token::Def,
+                "extern" => Token::Extern,
+                "if" => Token::If,
+                "then" => Token::Then,
+                "else" => Token::Else,
+                "for" => Token::For,
+                "in" => Token::In,
+                "binary" => Token::Binary,
+                "unary" => Token::Unary,
+                "var" => Token::Var,
+                ident => Token::Ident(ident.to_string())
             }
         } else if cap.name("number").is_some() {
-            match cap.name("number").unwrap().parse() {
-                Ok(number) => Number(number),
+            match cap.name("number").unwrap().as_str().parse() {
+                Ok(number) => Token::Number(number),
                 Err(_) => panic!("Lexer failed trying to parse number")
             }
         } else if cap.name("delimiter").is_some() {
-            Delimiter
+            Token::Delimiter
         } else if cap.name("oppar").is_some() {
-            OpeningParenthesis
+            Token::OpeningParenthesis
         } else if cap.name("clpar").is_some() {
-            ClosingParenthesis
+            Token::ClosingParenthesis
         } else if cap.name("comma").is_some() {
-            Comma
+            Token::Comma
         } else {
-            Operator(cap.name("operator").unwrap().to_string())
+            Token::Operator(String::from(cap.name("operator").unwrap().as_str()))
         };
 
         result.push(token)
@@ -114,4 +79,20 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 
     result
 }
-//> ch-0 ch-4 ch-5 ch-6 lexer-tokenize if-lexer for-lexer mutable-var-lexer
+
+#[cfg(test)]
+mod tests {
+
+    use super::tokenize;
+    use super::Token;
+
+    #[test]
+    fn test_lexer() {
+        let tokens = tokenize("if 1 == 1");
+        assert_eq!(tokens[0], Token::If);
+        assert_eq!(tokens[1], Token::Number(1.0));
+        assert_eq!(tokens[2], Token::Operator(String::from("=")));
+        assert_eq!(tokens[3], Token::Operator(String::from("=")));
+        assert_eq!(tokens[4], Token::Number(1.0));
+    }
+}

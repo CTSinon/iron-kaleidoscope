@@ -38,13 +38,11 @@ use self::PartParsingResult::{
     Bad
 };
 
-//< parser-astnode
 #[derive(PartialEq, Clone, Debug)]
 pub enum ASTNode {
     ExternNode(Prototype),
     FunctionNode(Function)
 }
-//> parser-astnode
 
 //< parser-defproto
 #[derive(PartialEq, Clone, Debug)]
@@ -158,9 +156,9 @@ pub fn parse(tokens : &[Token], parsed_tree : &[ASTNode], settings : &mut Parser
                 None => break
             };
         let result = match cur_token {
-            Def => parse_function(&mut rest, settings),
-            Extern => parse_extern(&mut rest, settings),
-            Delimiter => {rest.pop(); continue},
+            Token::Def => parse_function(&mut rest, settings),
+            Token::Extern => parse_extern(&mut rest, settings),
+            Token::Delimiter => {rest.pop(); continue},
             _ => parse_expression(&mut rest, settings)
         };
         match result {
@@ -235,9 +233,9 @@ macro_rules! expect_token (
 
 //< parser-parse-extern
 fn parse_extern(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
-    // eat Extern token
+    // eat Token::Extern token
     tokens.pop();
-    let mut parsed_tokens = vec![Extern];
+    let mut parsed_tokens = vec![Token::Extern];
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
     Good(ExternNode(prototype), parsed_tokens)
 }
@@ -245,9 +243,9 @@ fn parse_extern(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> Par
 
 //< parser-parse-function ops-parse-func
 fn parse_function(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<ASTNode> {
-    // eat Def token
+    // eat Token::Def token
     tokens.pop();
-    let mut parsed_tokens = vec!(Def);
+    let mut parsed_tokens = vec!(Token::Def);
     let prototype = parse_try!(parse_prototype, tokens, settings, parsed_tokens);
 //> ch-1 ch-4 parser-parse-function
 
@@ -279,7 +277,7 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
 /*j*/   )
 //< ch-1 ch-4 parser-parse-prototype
 /*jw*/  = expect_token!([
-            Ident(name), Ident(name.clone()), 
+            Token::Ident(name), Token::Ident(name.clone()), 
 //> ch-1 ch-4 parser-parse-prototype
 /*j*/       (
 //< ch-1 ch-4 parser-parse-prototype
@@ -288,19 +286,19 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
 /*j*/        , Normal
 /*j*/       );
 //> binary-parse-proto
-            Unary, Unary, {
+            Token::Unary, Token::Unary, {
                 let op = expect_token!([
-                        Operator(op), Operator(op.clone()), op
+                        Token::Operator(op), Token::Operator(op.clone()), op
                     ] <= tokens, parsed_tokens, "expected unary operator");
                 ("unary".to_string() + &op, UnaryOp(op))
             };
 //< binary-parse-proto
-            Binary, Binary, {
+            Token::Binary, Token::Binary, {
                 let op = expect_token!([
-                        Operator(op), Operator(op.clone()), op
+                        Token::Operator(op), Token::Operator(op.clone()), op
                     ] <= tokens, parsed_tokens, "expected binary operator");
                 let precedence = expect_token!(
-                    [Number(value), Number(value), value as i32]
+                    [Token::Number(value), Token::Number(value), value as i32]
                     else {30}
                     <= tokens, parsed_tokens);
 
@@ -314,15 +312,15 @@ fn parse_prototype(tokens : &mut Vec<Token>, _settings : &mut ParserSettings) ->
         ] <= tokens, parsed_tokens, "expected function name in prototype");
 
     expect_token!(
-        [OpeningParenthesis, OpeningParenthesis, ()] <= tokens,
+        [Token::OpeningParenthesis, Token::OpeningParenthesis, ()] <= tokens,
         parsed_tokens, "expected '(' in prototype");
 
     let mut args = Vec::new();
     loop {
         expect_token!([
-            Ident(arg), Ident(arg.clone()), args.push(arg.clone());
-            Comma, Comma, continue;
-            ClosingParenthesis, ClosingParenthesis, break
+            Token::Ident(arg), Token::Ident(arg.clone()), args.push(arg.clone());
+            Token::Comma, Token::Comma, continue;
+            Token::ClosingParenthesis, Token::ClosingParenthesis, break
         ] <= tokens, parsed_tokens, "expected ')' in prototype");
     }
 //> ch-1 ch-4 parser-parse-prototype
@@ -367,18 +365,18 @@ fn parse_expression(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
 //< parser-parse-primary-expr unary-parse-expr
 fn parse_primary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     match tokens.last() {
-        Some(&Ident(_)) => parse_ident_expr(tokens, settings),
-        Some(&Number(_)) => parse_literal_expr(tokens, settings),
+        Some(&Token::Ident(_)) => parse_ident_expr(tokens, settings),
+        Some(&Token::Number(_)) => parse_literal_expr(tokens, settings),
 //> ch-1 parser-parse-primary-expr
-        Some(&If) => parse_conditional_expr(tokens, settings),
+        Some(&Token::If) => parse_conditional_expr(tokens, settings),
 //> if-parser
-        Some(&For) => parse_loop_expr(tokens, settings),
+        Some(&Token::For) => parse_loop_expr(tokens, settings),
 //> ch-4 ch-5 for-parser unary-parse-expr
-        Some(&Var) => parse_var_expr(tokens, settings),
+        Some(&Token::Var) => parse_var_expr(tokens, settings),
 //< ch-5 unary-parse-expr
-        Some(&Operator(_)) => parse_unary_expr(tokens, settings),
+        Some(&Token::Operator(_)) => parse_unary_expr(tokens, settings),
 //< ch-1 ch-4 parser-parse-primary-expr if-parser for-parser
-        Some(&OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
+        Some(&Token::OpeningParenthesis) => parse_parenthesis_expr(tokens, settings),
         None => return NotComplete,
         _ => error("unknow token when expecting an expression")
     }
@@ -390,19 +388,19 @@ fn parse_ident_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
     let mut parsed_tokens = Vec::new();
 
     let name = expect_token!(
-        [Ident(name), Ident(name.clone()), name] <= tokens,
+        [Token::Ident(name), Token::Ident(name.clone()), name] <= tokens,
         parsed_tokens, "identificator expected");
 
     expect_token!(
-        [OpeningParenthesis, OpeningParenthesis, ()]
+        [Token::OpeningParenthesis, Token::OpeningParenthesis, ()]
         else {return Good(VariableExpr(name), parsed_tokens)}
         <= tokens, parsed_tokens);
 
     let mut args = Vec::new();
     loop {
         expect_token!(
-            [ClosingParenthesis, ClosingParenthesis, break;
-             Comma, Comma, continue]
+            [Token::ClosingParenthesis, Token::ClosingParenthesis, break;
+             Token::Comma, Token::Comma, continue]
             else {
                 args.push(parse_try!(parse_expr, tokens, settings, parsed_tokens));
             }
@@ -418,7 +416,7 @@ fn parse_literal_expr(tokens : &mut Vec<Token>, _settings : &mut ParserSettings)
     let mut parsed_tokens = Vec::new();
 
     let value = expect_token!(
-        [Number(val), Number(val), val] <= tokens,
+        [Token::Number(val), Token::Number(val), val] <= tokens,
         parsed_tokens, "literal expected");
 
     Good(LiteralExpr(value), parsed_tokens)
@@ -429,12 +427,12 @@ fn parse_literal_expr(tokens : &mut Vec<Token>, _settings : &mut ParserSettings)
 fn parse_parenthesis_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     // eat the opening parenthesis
     tokens.pop();
-    let mut parsed_tokens = vec![OpeningParenthesis];
+    let mut parsed_tokens = vec![Token::OpeningParenthesis];
 
     let expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     expect_token!(
-        [ClosingParenthesis, ClosingParenthesis, ()] <= tokens,
+        [Token::ClosingParenthesis, Token::ClosingParenthesis, ()] <= tokens,
         parsed_tokens, "')' expected");
 
     Good(expr, parsed_tokens)
@@ -460,7 +458,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
         // continue until the current token is not an operator
         // or it is an operator with precedence lesser than expr_precedence
         let (operator, precedence) = match tokens.last() {
-            Some(&Operator(ref op)) => match settings.operator_precedence.get(op) {
+            Some(&Token::Operator(ref op)) => match settings.operator_precedence.get(op) {
                 Some(pr) if *pr >= expr_precedence => (op.clone(), *pr),
                 None => return error("unknown operator found"),
                 _ => break
@@ -468,7 +466,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
             _ => break
         };
         tokens.pop();
-        parsed_tokens.push(Operator(operator.clone()));
+        parsed_tokens.push(Token::Operator(operator.clone()));
 
         // parse primary RHS expression
         let mut rhs = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);
@@ -477,7 +475,7 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
         // bigger than the current one
         loop {
             let binary_rhs = match tokens.last().map(|i| {i.clone()}) {
-                Some(Operator(ref op)) => match settings.operator_precedence.get(op).map(|i| {*i}) {
+                Some(Token::Operator(ref op)) => match settings.operator_precedence.get(op).map(|i| {*i}) {
                     Some(pr) if pr > precedence => {
                         parse_try!(parse_binary_expr, tokens, settings, parsed_tokens, pr, &rhs)
                     },
@@ -501,16 +499,16 @@ fn parse_binary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings, e
 
 fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     tokens.pop();
-    let mut parsed_tokens = vec![If];
+    let mut parsed_tokens = vec![Token::If];
     let cond_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     expect_token!(
-        [Then, Then, ()] <= tokens,
+        [Token::Then, Token::Then, ()] <= tokens,
         parsed_tokens, "expected then");
     let then_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     expect_token!(
-        [Else, Else, ()] <= tokens,
+        [Token::Else, Token::Else, ()] <= tokens,
         parsed_tokens, "expected else");
     let else_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
@@ -521,13 +519,13 @@ fn parse_conditional_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettin
 
 fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     tokens.pop();
-    let mut parsed_tokens = vec![For];
+    let mut parsed_tokens = vec![Token::For];
     let var_name = expect_token!(
-        [Ident(name), Ident(name.clone()), name] <= tokens,
+        [Token::Ident(name), Token::Ident(name.clone()), name] <= tokens,
         parsed_tokens, "expected identifier after for");
 
     expect_token!(
-        [Operator(op), Operator(op.clone()), {
+        [Token::Operator(op), Token::Operator(op.clone()), {
             if op.as_str() != "=" {
                 return error("expected '=' after for")
             }
@@ -537,18 +535,18 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
     let start_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     expect_token!(
-        [Comma, Comma, ()] <= tokens,
+        [Token::Comma, Token::Comma, ()] <= tokens,
         parsed_tokens, "expected ',' after for start value");
 
     let end_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
 
     let step_expr = expect_token!(
-        [Comma, Comma, parse_try!(parse_expr, tokens, settings, parsed_tokens)]
+        [Token::Comma, Token::Comma, parse_try!(parse_expr, tokens, settings, parsed_tokens)]
         else {LiteralExpr(1.0)}
         <= tokens, parsed_tokens);
 
     expect_token!(
-        [In, In, ()] <= tokens,
+        [Token::In, Token::In, ()] <= tokens,
         parsed_tokens, "expected 'in' after for");
 
     let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
@@ -560,16 +558,16 @@ fn parse_loop_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> 
 
 fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> PartParsingResult<Expression> {
     tokens.pop();
-    let mut parsed_tokens = vec![Var];
+    let mut parsed_tokens = vec![Token::Var];
     let mut vars = Vec::new();
 
     loop {
         let var_name = expect_token!(
-            [Ident(name), Ident(name.clone()), name] <= tokens,
+            [Token::Ident(name), Token::Ident(name.clone()), name] <= tokens,
             parsed_tokens, "expected identifier list after var");
 
         let init_expr = expect_token!(
-            [Operator(op), Operator(op.clone()), {
+            [Token::Operator(op), Token::Operator(op.clone()), {
                 if op.as_str() != "=" {
                     return error("expected '=' in variable initialization")
                 }
@@ -581,13 +579,13 @@ fn parse_var_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) -> P
         vars.push((var_name, init_expr));
 
         expect_token!(
-            [Comma, Comma, ()]
+            [Token::Comma, Token::Comma, ()]
             else {break}
             <= tokens, parsed_tokens);
     }
 
     expect_token!(
-        [In, In, ()] <= tokens,
+        [Token::In, Token::In, ()] <= tokens,
         parsed_tokens, "expected 'in' after var");
 
     let body_expr = parse_try!(parse_expr, tokens, settings, parsed_tokens);
@@ -601,7 +599,7 @@ fn parse_unary_expr(tokens : &mut Vec<Token>, settings : &mut ParserSettings) ->
     let mut parsed_tokens = Vec::new();
 
     let name = expect_token!(
-        [Operator(name), Operator(name.clone()), name] <= tokens,
+        [Token::Operator(name), Token::Operator(name.clone()), name] <= tokens,
         parsed_tokens, "unary operator expected");
 
     let operand = parse_try!(parse_primary_expr, tokens, settings, parsed_tokens);

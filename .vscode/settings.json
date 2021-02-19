@@ -1,0 +1,12 @@
+{
+    "editor.rulers": [
+    
+    ],
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/*/**": true,
+        "**/.hg/store/**": true,
+        "**/target/**": true
+    }
+}
