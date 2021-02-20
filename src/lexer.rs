@@ -1,5 +1,15 @@
 use regex_macro::regex;
 
+#[derive(PartialEq, Clone, Debug)]
+pub enum Operator {
+    Add,
+    Mul,
+    Sub,
+    Div,
+    Mod,
+    Assign
+}
+
 /// all the tokens used in our language
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
@@ -19,7 +29,7 @@ pub enum Token {
     Comma,
     Ident(String),
     Number(f64),
-    Operator(String)
+    Operator(Operator)
 }
 
 /// split the source code into vector of token
@@ -70,8 +80,18 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             Token::ClosingParenthesis
         } else if cap.name("comma").is_some() {
             Token::Comma
+        } else if cap.name("operator").is_some() {
+            match cap.name("operator").unwrap().as_str() {
+                "+" => Token::Operator(Operator::Add),
+                "-" => Token::Operator(Operator::Sub),
+                "*" => Token::Operator(Operator::Mul),
+                "/" => Token::Operator(Operator::Div),
+                "%" => Token::Operator(Operator::Mod),
+                "=" => Token::Operator(Operator::Assign),
+                _ => panic!("Unknown operator.")
+            }
         } else {
-            Token::Operator(String::from(cap.name("operator").unwrap().as_str()))
+            panic!("Impossible error.")
         };
 
         result.push(token)
@@ -84,15 +104,16 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 mod tests {
 
     use super::tokenize;
-    use super::Token;
+    use super::{Token, Operator};
 
     #[test]
     fn test_lexer() {
-        let tokens = tokenize("if 1 == 1");
-        assert_eq!(tokens[0], Token::If);
-        assert_eq!(tokens[1], Token::Number(1.0));
-        assert_eq!(tokens[2], Token::Operator(String::from("=")));
-        assert_eq!(tokens[3], Token::Operator(String::from("=")));
-        assert_eq!(tokens[4], Token::Number(1.0));
+        let tokens = tokenize("extern a = 2 / 3");
+        assert_eq!(tokens[0], Token::Extern);
+        assert_eq!(tokens[1], Token::Ident(String::from("a")));
+        assert_eq!(tokens[2], Token::Operator(Operator::Assign));
+        assert_eq!(tokens[3], Token::Number(2.0));
+        assert_eq!(tokens[4], Token::Operator(Operator::Div));
+        assert_eq!(tokens[5], Token::Number(3.0));
     }
 }
