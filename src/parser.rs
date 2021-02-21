@@ -4,8 +4,8 @@ use lexer::*;
 /// a definition
 #[derive(Debug, PartialEq, Clone)]
 pub enum ASTNode {
-    Declaration,
-    Definition
+    Declaration(Declaration),
+    Definition(Definition)
 }
 
 /// a declaration gives us the prototype of a function, which consists of
@@ -20,7 +20,7 @@ pub enum Declaration {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Prototype {
     name: String,
-    args: String
+    args: Vec<String>
 }
 
 /// definition consists of a prototype and an expression</br>
@@ -56,7 +56,7 @@ pub struct BinaryExpr {
     rhs: Box<Expression>
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Vec<ASTNode>, String> {
+pub fn parse(tokens: &Vec<Token>) -> Result<Vec<ASTNode>, String> {
     let mut token_stack = tokens.clone();
     let mut ast_result: Vec<ASTNode> = Vec::new();
 
@@ -95,48 +95,75 @@ macro_rules! ret_err_msg {
 }
 
 macro_rules! expect_token {
-    ($pattern:pat in $tokens:expr, $idt:expr, $err_msg:expr) => {
-        expect_token!(@expand $pattern in $tokens, $idt, {ret_err_msg!($err_msg)})
+    ($pattern:pat in $tokens:expr, do $idt:block, except $err:block) => {
+        expect_token!(@expand ($pattern) in $tokens, $idt, $err)
     };
 
-    ($pattern:pat in $tokens:expr, $err_msg:expr) => {
-        expect_token!(@expand $pattern in $tokens, {}, {ret_err_msg!($err_msg)})
+    ($pattern:pat in $tokens:expr, except $err:block) => {
+        expect_token!(@expand ($pattern) in $tokens, {}, $err)
     };
 
-    (@expand $pattern:pat in $tokens:tt, $ret:tt, $err:block) => {{
-        if let Some(x) = $tokens.pop() {
+    ($pattern:pat in $tokens:expr, do $idt:block, throw $err_msg:expr) => {
+        expect_token!(@expand ($pattern) in $tokens, $idt, {ret_err_msg!($err_msg)})
+    };
+
+    ($pattern:pat in $tokens:expr, throw $err_msg:expr) => {
+        expect_token!(@expand ($pattern) in $tokens, {}, {ret_err_msg!($err_msg)})
+    };
+
+    (@expand ($($pattern:pat),+) in $tokens:expr, $do:block, $err:block) => {{
+        if let Some(x) = $tokens.last() {
+            let x = x.clone();
             match x {
-                $pattern => $ret,
+                $($pattern)|+ => $do,
                 _ => $err
             }
         } else {
-            return Err(String::from("incomplete sentence."))
+            return Err(String::from("unexpected end of program."))
         }
     }};
-
-    
 }
 
+/// parse a declaration and return the corresponding AST node
 /// a declaration obeies this form:</br>
 /// extern name (arg1, arg2, ...)
 pub fn parse_declare(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
     // pop the Extern token
     tokens.pop();
 
-    let cur_token = match tokens.last() {
-        Some(x) => x,
-        _ => return Err(String::from("declaration statement not complete."))
-    };
+    // eat name
+    let name = expect_token!(Token::Ident(t) in tokens, 
+        do {tokens.pop();t}, 
+        throw "expect function name in declaration.");
+    // eat '('
+    expect_token!(Token::OpeningParenthesis in tokens, 
+        do {tokens.pop()},
+        throw "missing '('");
 
-    let name = expect_token!(Token::Ident(t) in tokens, t, "expecting ident");
-    expect_token!(Token::OpeningParenthesis in tokens, "missing '('");
+    // eat all args into a string vector
+    let mut args: Vec<String> = vec![];
+    loop {
+        args.push(expect_token!(Token::Ident(t) in tokens, 
+            do {tokens.pop(); t}, 
+            except {break}));
+        expect_token!(Token::Comma in tokens, 
+            do {tokens.pop();}, 
+            except {});
+    }
 
+    // eat ')'
+    expect_token!(Token::ClosingParenthesis in tokens, 
+        do {tokens.pop();},
+        throw "missing ')'");
 
+    let ast_node = ASTNode::Declaration(Declaration::Prototype(
+        Prototype {
+            name,
+            args
+        }
+    ));
 
-
-
-
-    Err(String::from("unexpected token."))
+    Ok(ast_node)
 }
 
 pub fn parse_expr(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
@@ -152,7 +179,31 @@ mod tests {
     fn all_delimiter() {
         let delimiters = tokenize(";;;;");
         assert_eq!(delimiters, vec![Token::Delimiter, Token::Delimiter, Token::Delimiter, Token::Delimiter]);
-        let res = parse(delimiters).unwrap();
+        let res = parse(&delimiters).unwrap();
         assert_eq!(res, Vec::new());
+    }
+
+    #[test]
+    fn test_declaration() {
+        let declare1 = tokenize("extern my_first_func(arg1, arg2, arg3)");
+        let declare2 = tokenize("extern myfunc(arg1)");
+        let declare3 = tokenize("extern myfunc()");
+        let declare4 = tokenize("extern myfunc(arg1 arg2");
+        let declare5 = tokenize("extern myfunc(;a");
+        let declare6 = tokenize("extern myfunc(arg1");
+
+        let res1 = parse(&declare1).unwrap();
+        let res2 = parse(&declare2).unwrap();
+        let res3 = parse(&declare3).unwrap();
+        println!("{:?}", res1);
+        println!("{:?}", res2);
+        println!("{:?}", res3);
+
+        let res4 = parse(&declare4).unwrap_err();
+        let res5 = parse(&declare5).unwrap_err();
+        let res6 = parse(&declare6).unwrap_err();
+        println!("{:?}", res4);
+        println!("{:?}", res5);
+        println!("{:?}", res6);
     }
 }
