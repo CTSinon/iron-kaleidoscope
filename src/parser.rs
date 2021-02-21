@@ -15,7 +15,6 @@ pub enum Declaration {
     Prototype(Prototype)
 }
 
-
 /// defines a prototype
 #[derive(Debug, PartialEq, Clone)]
 pub struct Prototype {
@@ -71,8 +70,8 @@ pub fn parse(tokens: &Vec<Token>) -> Result<Vec<ASTNode>, String> {
             None => break
         };
         let cur_node = match cur_token {
-            Token::Extern => parse_declare(&mut token_stack)?,
-            Token::Def => parse_def(&mut token_stack)?,
+            Token::Extern => parse_declaration(&mut token_stack)?,
+            Token::Def => parse_definition(&mut token_stack)?,
             Token::Ident(_) | Token::OpeningParenthesis => parse_expr(&mut token_stack)?,
             Token::Delimiter => {token_stack.pop(); continue},
             _ => return Err(String::from("unexpected token.")),
@@ -83,7 +82,14 @@ pub fn parse(tokens: &Vec<Token>) -> Result<Vec<ASTNode>, String> {
     Ok(ast_result)
 }
 
-pub fn parse_def(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
+pub fn parse_definition(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
+    // eat Def keyword
+    tokens.pop();
+
+    // parse the prototype
+    let prototype = parse_prototype(tokens)?;
+
+    
 
     Err(String::from("unexpected token."))
 }
@@ -124,13 +130,7 @@ macro_rules! expect_token {
     }};
 }
 
-/// parse a declaration and return the corresponding AST node
-/// a declaration obeies this form:</br>
-/// extern name (arg1, arg2, ...)
-pub fn parse_declare(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
-    // pop the Extern token
-    tokens.pop();
-
+pub fn parse_prototype(tokens: &mut Vec<Token>) -> Result<Prototype, String> {
     // eat name
     let name = expect_token!(Token::Ident(t) in tokens, 
         do {tokens.pop();t}, 
@@ -156,14 +156,23 @@ pub fn parse_declare(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
         do {tokens.pop();},
         throw "missing ')'");
 
-    let ast_node = ASTNode::Declaration(Declaration::Prototype(
-        Prototype {
-            name,
-            args
-        }
-    ));
+    Ok(Prototype {
+        name,
+        args
+    })
+}
 
-    Ok(ast_node)
+/// parse a declaration and return the corresponding AST node
+/// a declaration obeies this form:</br>
+/// extern name (arg1, arg2, ...)
+pub fn parse_declaration(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
+    // pop the Extern token
+    tokens.pop();
+
+    // get prototype
+    let prototype = parse_prototype(tokens)?;
+
+    Ok(ASTNode::Declaration(Declaration::Prototype(prototype)))
 }
 
 pub fn parse_expr(tokens: &mut Vec<Token>) -> Result<ASTNode, String> {
